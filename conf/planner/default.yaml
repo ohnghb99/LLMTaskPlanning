@@ -8,7 +8,7 @@ random_seed: 0
 scoring_batch_size: 4
 score_function: 'sum'
 scoring_mode: 'guidance'  # naive, reuse_prompt, guidance
-use_predefined_prompt: True  # NOTE: This uses a pre-defined prompt, and you can put a failure message in the prompt.
+use_predefined_prompt: False  # NOTE: This uses a pre-defined prompt, and you can put a failure message in the prompt.
 thresholding: False
 hf_auth_token: ''  # NOTE: this is required for downloading the private model from HuggingFace
 openai_api_key: 'sk-'  # NOTE: this is required for using the OpenAI API
