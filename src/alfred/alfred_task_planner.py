@@ -48,7 +48,6 @@ class AlfredTaskPlanner(TaskPlanner):
             examples_json = json.load(f)
             for e in examples_json:
                 examples[e['task type']].append(e)
-                log.info('NL steps :', examples[e['NL steps']])
 
         # example sampling
         examples_selected = []

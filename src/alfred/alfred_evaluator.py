@@ -222,6 +222,15 @@ class AlfredEvaluator(Evaluator):
             for ex in train_examples:
                 train_gt_steps[ex['task id']] = ex['NL steps']
 
+        valid_seen_gt_steps = None
+        if self.cfg.alfred.eval_set == 'valid_seen':
+            # load ground-truth trajectories
+            valid_seen_gt_steps = {}
+            with open(self.cfg.prompt.example_file_path, 'r') as f:
+                valid_seen_examples = json.load(f)
+            for ex in valid_seen_examples:
+                valid_seen_gt_steps[ex['task id']] = ex['NL steps']
+
         # run
         for i, task in enumerate(tqdm(tasks)):
             try:
@@ -247,9 +256,6 @@ class AlfredEvaluator(Evaluator):
         return results, fail_total, success_total
     
     def evaluate_task(self, env, traj_data, r_idx, model_args, planner, save_path, log_prompt=False, train_gt_steps=None):
-
-        log.info('traj_data ', traj_data['turk_annotations']['anns'][r_idx]['high_descs'])
-
         # setup scene
         scene_num = traj_data['scene']['scene_num']
         object_poses = traj_data['scene']['object_poses']
