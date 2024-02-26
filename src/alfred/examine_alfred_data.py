@@ -58,7 +58,6 @@ def load_tasks(split='train'):
     for path in sorted(base_path.glob("**/traj_data.json")):
         with open(path) as f:
             data = json.load(f)
-        # print(data)
         task_type = data['task_type']
         tasks[task_type].append(data)
 
@@ -200,7 +199,7 @@ def export_train_examples(export=True, export_text_samples=True):
 
     for key in sorted(tasks.keys()):
         print('---------------------------------------------')
-        print(key)
+        print('key=',key)
         print('N=', len(tasks[key]))
         print('---------------------------------------------')
         print()
@@ -209,7 +208,7 @@ def export_train_examples(export=True, export_text_samples=True):
         # samples = random.sample(tasks[key], 10)  # sampling
 
         for e in samples:
-            print('Task id:', e['task_id'])
+            #print('Task id:', e['task_id'])
 
             # exclude pick_two_obj_and_place type
             if e['task_type'] == 'pick_two_obj_and_place':

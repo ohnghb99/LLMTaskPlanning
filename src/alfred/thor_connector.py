@@ -56,6 +56,7 @@ class ThorConnector(ThorEnv):
                     width, height = self.font.getsize(line)
                     draw.text((6, y_text + 6), line, font=self.font, fill=(255, 0, 0))
                     y_text += height
+            
         return img
 
 

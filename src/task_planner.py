@@ -3,7 +3,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer, Ll
 from torch.nn import CrossEntropyLoss
 import guidance
 import logging
+from matplotlib import pyplot as plt
+import seaborn as sns 
+import math
 
+log = logging.getLogger(__name__)
 
 class TaskPlanner:
     def __init__(self, cfg):
@@ -15,6 +19,7 @@ class TaskPlanner:
         self.score_function = cfg.planner.score_function
         self.scoring_mode = cfg.planner.scoring_mode
         self.use_predefined_prompt = cfg.planner.use_predefined_prompt
+        self.thresholding = cfg.planner.thresholding
 
         # Load pre-trained model
         print(f"Loading LLM and tokenizer: {self.model_name}")
@@ -84,7 +89,7 @@ class TaskPlanner:
         batch_skill_set_list = [skill_set[chunk:chunk + self.scoring_batch_size] for chunk in
                                 range(0, len(skill_set), self.scoring_batch_size)]
 
-        if self.scoring_mode == 'guidance':
+        if self.scoring_mode == 'guidance':                  
             out = self.guidance_program(prompt=prompt, candidates=skill_set)
             scores = out['score']
 
@@ -112,6 +117,7 @@ class TaskPlanner:
                             concat_attention_mask = torch.cat(
                                 (prompt_tokens.attention_mask.repeat(size_B, 1), skill_tokens.attention_mask), dim=1)
                             batch_past_key_values = self.duplicate_past_key_values(prompt_output.past_key_values, size_B)
+                    elif self.scoring_mode == 'naive':
 
                             output = self.model(input_ids=skill_tokens.input_ids,
                                                 attention_mask=concat_attention_mask,
@@ -129,6 +135,7 @@ class TaskPlanner:
                                 sentence_tokens = sentence_tokens.to(self.device)
                             output = self.model(sentence_tokens.input_ids, attention_mask=sentence_tokens.attention_mask,
                                                 return_dict=True)
+                            print(output)
                             logits = output.logits[:, prompt_len - 1:-1]
                             labels = sentence_tokens.input_ids[:, prompt_len:]
                             attention_mask = sentence_tokens.attention_mask[:, prompt_len:]
@@ -150,55 +157,66 @@ class TaskPlanner:
         else:
             assert False, 'unknown scoring mode'
         return scores
+    
+    # beam search
+    def beam_search(self, query, k):
+        sequences = [[list(), 0.0]]
 
-    def plan_whole(self, query):
+        for row in query:
+            all_candidates = list()
+        
+        for i in range(len(sequences)):
+            seq, score = sequences[i]
+            for j in range(len(row)):
+                new_seq = seq + [j]
+                new_score = score + -log(row[j])
+                candidate = [new_seq, new_score]
+                all_candidates.append(candidate)
+
+        ordered = sorted(all_candidates, key=lambda tup:tup[1])
+        sequences = ordered[:k]
+
+        return sequences
+
+    def plan(self, query):      # 사용 X
         step_seq = []
         skill_set_size_seq = []
-        # prompt = self.prompt + f'Human: {query}\nRobot: 1.'
+        prompt = self.prompt + f'Human: {query}\nRobot: 1.'
         print(f"Input query: {query}")
 
-        prompt_lines = self.prompt.split('\n')
-        prompt_examples = prompt_lines[2:]
-        example_text = '\n'.join(prompt_examples)
-        skills_text = ', '.join([x.strip() for x in self.skill_set])
+        # Scoring
+        for step in range(self.max_steps):
+            # Make batch
+            skill_set = self.skill_set
 
-        self.guidance_program = guidance("""
-        {{#system~}}
-        You are a robot operating in a home. A human user can ask you to do various tasks and you are supposed to tell the sequence of actions you would do to accomplish your task.
-        {{~/system}}
-        
-        {{#user~}}
-        Examples of human instructions and possible your (robot) answers:
-        {{example_text}}
-        
-        Now please answer the sequence of actions for the input instruction.
-        You should use one of actions of this list: {{skills_text}}.
-        List the actions with comma seperator.
-        
-        Input user instruction:   
-        {{query}}
-        {{~/user}}
-        
-        {{#assistant~}}
-        {{gen 'answer' temperature=0 max_tokens=500}}
-        {{~/assistant}}
-        """)
+            # Save skill set size
+            skill_set_size_seq.append(len(skill_set))
 
-        # run
-        out = self.guidance_program(example_text=example_text, skills_text=skills_text, query=query)
-        answer = out['answer']
-        print(answer)
+            # Scoring
+            scores = self.score(prompt, skill_set)
 
-        # to list
-        answer = answer.replace('Robot: ', '')
-        actions = [action.strip(' 1234567890.') for action in answer.split(',')]
-        step_seq = actions
+            # Select best skill
+            results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            best_step = results[0][0]
+            step_seq.append(best_step.strip())
+            print(f'{step + 1}. {best_step}')
+
+            # Stop criteria
+            if best_step in ['done', 'done.', 'done.\n']:
+                prompt += f" {best_step}."
+                break
+
+            # Update skill set
+            self.update_skill_set(best_step, self.nl_obj_list)
+
+            # Update prompt
+            prompt += f" {best_step}, {step + 2}."
 
         return step_seq, skill_set_size_seq
 
     def plan_step_by_step(self, query, prev_steps=(), prev_msgs=()):
         if len(prev_steps) >= self.max_steps:
-            return None, None
+            return None, None, None
 
         prompt = self.prompt + f'Human: {query.strip()}\nRobot: 1. '
 
@@ -209,14 +227,50 @@ class TaskPlanner:
                 prompt += step + f', {i + 2}. '
 
         # score
-        scores = self.score(prompt, self.skill_set)
+        scores = self.score(prompt, self.skill_set)     # 각 스킬셋의 score, 제일 높은게 선택된다, 가이던스의 score가 출력됨
 
         # find the best step
-        results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        best_step = results[0][0]
-        best_step = best_step.strip()
+        results = sorted(scores.items(), key=lambda x: x[1], reverse=True)      # x[1]이 score라, score가 높은 순으로 내림차순 정렬
 
-        return best_step, prompt
+        log_record = results[:3]
+        print('log_record :', log_record)
+
+        best_step = results[0][0].strip()
+
+        diff = None
+        diff_ex = None
+        if best_step.startswith("find"):
+            best_step = results[0][0].strip()   # 1순위의 skill set
+            best_step_probs = results[0][1]
+            print('best_step_probs : ', best_step_probs)
+            best_probs = math.exp(best_step_probs)
+            print('best_probs (exponential) : ', best_probs)
+
+            second_step = results[1][0].strip()     # 2순위의 skill set
+            second_step_probs = results[1][1]     # numpy.float64
+            second_probs = math.exp(second_step_probs)
+            print('second_probs (exponential) : ', second_probs)
+            
+            diff = second_step_probs - best_step_probs  # 2순위와 1순위의 score 차이
+            diff_ex = second_probs - best_probs
+            print('diff : ', diff, '\tdiff_ex : ', diff_ex)
+
+            # 특정 threshold 이상의 score 차이가 나면 2순위 스킬셋을 선택
+            # gpt-3.5-turbo-instruct : -0.531865
+            # davinci-003 : -0.58945
+            # llama-2-7b : -0.18834
+            # llama-2-13b : -0.2504
+            # llama-2-70b : -0.22253
+            # llama-1-7b : -0.18208
+            # llama-1-13b : -0.26045
+            # llama-1-65b : -0.28849
+            if self.thresholding:
+                    threshold = float(-0.58945)
+                    if diff_ex > threshold:
+                        best_step = second_step
+                        print('second : ', best_step)
+       
+        return best_step, prompt, diff_ex
 
     def duplicate_past_key_values(self, past_key_values, batch_size):
         batch_past_key_values = []
