@@ -90,7 +90,7 @@ class AlfredEvaluator(Evaluator):
         # find만 겁나많이할때 오류남 
 
         if True:  # debug mode
-            debug_files = ['trial_T20190906_234406_356490'] # trial_T20190907_054906_608944
+            debug_files = ['trial_T20190909_081908_677973'] # trial_T20190907_054906_608944
             # debug_files = ['trial_T20190908_050518_595510_0', 'trial_T20190908_023400_293044_0', 'trial_T20190908_175253_104175_2', 'trial_T20190909_141915_002879_1', 'trial_T20190906_194903_710920_2',
             #                'trial_T20190908_033721_967359_0', 'trial_T20190907_222640_487432_1', 'trial_T20190908_052232_887934_2', 'trial_T20190907_070152_814652_2', 'trial_T20190910_112922_368384_1',
             #                'trial_T20190906_201148_878110_2', 'trial_T20190909_124835_952557_2', 'trial_T20190906_201106_979461_0', 'trial_T20190908_124340_258012_1', 'trial_T20190907_183137_838565_1',
@@ -115,7 +115,7 @@ class AlfredEvaluator(Evaluator):
         start = time.time()
         x_display = cfg.alfred.x_display
         save_path = cfg.out_dir
-        results, fail_totals, success_totals = self.evaluate_main(files, args_dict, planner, x_display, save_path)
+        results= self.evaluate_main(files, args_dict, planner, x_display, save_path)
         # print('before entropy calc fail totals : ', fail_totals)
 
         # # print entropy
@@ -203,8 +203,8 @@ class AlfredEvaluator(Evaluator):
 
     def evaluate_main(self, tasks, args_dict, planner, x_display, save_path):
         results = []
-        fail_total = []
-        success_total = []
+        # fail_total = []
+        # success_total = []
         model_args = dotdict(args_dict)
         env = ThorConnector(x_display=x_display)
         
@@ -238,13 +238,11 @@ class AlfredEvaluator(Evaluator):
                 traj_data = load_task_json(task)
                 r_idx = task['repeat_idx']      # trial_T.....__0 <- 맨마지막 순서가 r_idx (task['repeat_idx'])
                 log.info(f"Evaluating ({i+1}/{len(tasks)}): {traj_data['root']}")
-                result, total_diff = self.evaluate_task(env, traj_data, r_idx, model_args, planner, save_path, log_prompt=(i==0), train_gt_steps=train_gt_steps, valid_seen_gt_steps=valid_seen_gt_steps)
+                result = self.evaluate_task(env, traj_data, r_idx, model_args, planner, save_path, log_prompt=(i==0), train_gt_steps=train_gt_steps, valid_seen_gt_steps=valid_seen_gt_steps)
                 if result['success'] is not True:
-                    print('not success!! total append ok')
-                    fail_total.append(total_diff)
+                    print('not success!!')
                 else:
-                    print('success!! total append ok')
-                    success_total.append(total_diff)
+                    print('success!!')
                 results.append(result)
 
             except Exception as e:
@@ -252,7 +250,7 @@ class AlfredEvaluator(Evaluator):
                 traceback.print_exc()
                 log.info("Error: " + repr(e))
 
-        return results, fail_total, success_total
+        return results#, fail_total, success_total
     
     def evaluate_task(self, env, traj_data, r_idx, model_args, planner, save_path, log_prompt=False, train_gt_steps=None, valid_seen_gt_steps=None):
         # setup scene
@@ -281,7 +279,7 @@ class AlfredEvaluator(Evaluator):
 
         prev_steps = []
         prev_action_msg = []
-        prev_diff_score = []
+        prev_all_score = []
         while not done:
             if self.cfg.alfred.eval_set == 'train' and train_gt_steps is not None:
                 # sanity check for thor connector: use ground-truth steps
@@ -292,24 +290,25 @@ class AlfredEvaluator(Evaluator):
                 prompt = ''
             else:
                 # find next step
-                step, prompt, diff_score = planner.plan_step_by_step(instruction_text, prev_steps, prev_action_msg)
+                step, prompt, all_score = planner.plan_step_by_step(instruction_text, prev_steps, prev_action_msg)
 
                 if step is None:
                     log.info("\tmax step reached")
                     break
-                
-                if diff_score is not None:
-                    prev_diff_score.append(diff_score)
-                    # print('length: ', len(prev_diff_score), ', prev_diff_score : ', prev_diff_score)
+
+                if all_score is not None:
+                    prev_all_score.append(all_score)
+                    print('all score: ', prev_all_score[t][:10])
 
             # prompt 로그
             # if log_prompt:
             #     log.info(prompt)
-
+            
+            log.info('-------------------')
             log.info(f'{len(prev_steps) + 1}. {step}')
             prev_steps.append(step)
 
-            print('Ground Truth :', valid_seen_gt_steps[traj_data['task_id']])
+            print('Ground Truth :', valid_seen_gt_steps[traj_data['task_id']])      # traj_data['task_id'] : trial_T20190909_081908_677973
             print('step :', step)
 
             if t >= len(valid_seen_gt_steps[traj_data['task_id']]):
@@ -344,7 +343,7 @@ class AlfredEvaluator(Evaluator):
             t += 1
         
         # while 끝나면 target goal : {}... success : True or False 출력하는거 나옴
-        print('이 task의 최종 length: ', len(prev_diff_score), '  prev_diff_score : ', prev_diff_score)
+        # print('이 task의 최종 length: ', len(prev_diff_score), '  prev_diff_score : ', prev_diff_score)
 
         # check if goal was satisfied
         goal_satisfied = env.get_goal_satisfied()
@@ -367,7 +366,7 @@ class AlfredEvaluator(Evaluator):
         # save
         self.save_result(env, log_entry, imgs, save_path)
 
-        return log_entry, prev_diff_score
+        return log_entry
 
     def save_result(self, env, result_dict, imgs, base_path='results'):
         if result_dict:

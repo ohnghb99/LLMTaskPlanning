@@ -227,50 +227,46 @@ class TaskPlanner:
                 prompt += step + f', {i + 2}. '
 
         # score
-        scores = self.score(prompt, self.skill_set)     # 각 스킬셋의 score, 제일 높은게 선택된다, 가이던스의 score가 출력됨
+        scores = self.score(prompt, self.skill_set)     # 각 스킬의 score, 가이던스의 score가 출력됨
 
         # find the best step
-        results = sorted(scores.items(), key=lambda x: x[1], reverse=True)      # x[1]이 score라, score가 높은 순으로 내림차순 정렬
-
-        log_record = results[:3]
-        print('log_record :', log_record)
+        results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
         best_step = results[0][0].strip()
+        # second_step = results[1][0].strip()
 
-        diff = None
-        diff_ex = None
-        if best_step.startswith("find"):
-            best_step = results[0][0].strip()   # 1순위의 skill set
-            best_step_probs = results[0][1]
-            print('best_step_probs : ', best_step_probs)
-            best_probs = math.exp(best_step_probs)
-            print('best_probs (exponential) : ', best_probs)
-
-            second_step = results[1][0].strip()     # 2순위의 skill set
-            second_step_probs = results[1][1]     # numpy.float64
-            second_probs = math.exp(second_step_probs)
-            print('second_probs (exponential) : ', second_probs)
+        # diff = None
+        # diff_ex = None
+        # if best_step.startswith("find"):
+        #     best_step_probs = results[0][1]
+        #     #print('best_step_probs : ', best_step_probs)
+        #     best_probs = math.exp(best_step_probs)
+        #     #print('best_probs (exponential) : ', best_probs)
             
-            diff = second_step_probs - best_step_probs  # 2순위와 1순위의 score 차이
-            diff_ex = second_probs - best_probs
-            print('diff : ', diff, '\tdiff_ex : ', diff_ex)
+        #     second_step_probs = results[1][1]     # numpy.float64
+        #     second_probs = math.exp(second_step_probs)
+        #     #print('second_probs (exponential) : ', second_probs)
+            
+        #     diff = second_step_probs - best_step_probs  # 2순위와 1순위의 score 차이
+        #     diff_ex = second_probs - best_probs
+        #     #print('diff : ', diff, '\tdiff_ex : ', diff_ex)
 
-            # 특정 threshold 이상의 score 차이가 나면 2순위 스킬셋을 선택
-            # gpt-3.5-turbo-instruct : -0.531865
-            # davinci-003 : -0.58945
-            # llama-2-7b : -0.18834
-            # llama-2-13b : -0.2504
-            # llama-2-70b : -0.22253
-            # llama-1-7b : -0.18208
-            # llama-1-13b : -0.26045
-            # llama-1-65b : -0.28849
-            if self.thresholding:
-                    threshold = float(-0.58945)
-                    if diff_ex > threshold:
-                        best_step = second_step
-                        print('second : ', best_step)
+        #     # 특정 threshold 이상의 score 차이가 나면 2순위 스킬셋을 선택
+        #     # gpt-3.5-turbo-instruct : -0.531865
+        #     # davinci-003 : -0.58945
+        #     # llama-2-7b : -0.18834
+        #     # llama-2-13b : -0.2504
+        #     # llama-2-70b : -0.22253
+        #     # llama-1-7b : -0.18208
+        #     # llama-1-13b : -0.26045
+        #     # llama-1-65b : -0.28849
+        #     if self.thresholding:
+        #             threshold = float(-0.58945)
+        #             if diff_ex > threshold:
+        #                 best_step = second_step
+        #                 print('second : ', best_step)
        
-        return best_step, prompt, diff_ex
+        return best_step, prompt, results #diff_ex
 
     def duplicate_past_key_values(self, past_key_values, batch_size):
         batch_past_key_values = []
