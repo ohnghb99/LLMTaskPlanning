@@ -227,12 +227,13 @@ class TaskPlanner:
                 prompt += step + f', {i + 2}. '
 
         # score
-        scores = self.score(prompt, self.skill_set)     # 각 스킬의 score, 가이던스의 score가 출력됨
+        scores = self.score(prompt, self.skill_set)     # 각 스킬의 score, 가이던스의 score가 출력됨, 딕셔너리
 
         # find the best step
         results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
         best_step = results[0][0].strip()
+        best_step_prob = results[0][1]
         # second_step = results[1][0].strip()
 
         # diff = None
@@ -266,7 +267,7 @@ class TaskPlanner:
         #                 best_step = second_step
         #                 print('second : ', best_step)
        
-        return best_step, prompt, results #diff_ex
+        return best_step, prompt, best_step_prob #diff_ex
 
     def duplicate_past_key_values(self, past_key_values, batch_size):
         batch_past_key_values = []

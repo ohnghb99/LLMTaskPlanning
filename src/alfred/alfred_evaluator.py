@@ -89,8 +89,8 @@ class AlfredEvaluator(Evaluator):
 
         # find만 겁나많이할때 오류남 
 
-        if True:  # debug mode
-            debug_files = ['trial_T20190909_081908_677973'] # trial_T20190907_054906_608944
+        if cfg.planner.debug_mode:  # debug mode
+            debug_files = ['trial_T20190909_111324_949106'] # trial_T20190907_054906_608944, 짧은거 : trial_T20190909_081908_677973
             # debug_files = ['trial_T20190908_050518_595510_0', 'trial_T20190908_023400_293044_0', 'trial_T20190908_175253_104175_2', 'trial_T20190909_141915_002879_1', 'trial_T20190906_194903_710920_2',
             #                'trial_T20190908_033721_967359_0', 'trial_T20190907_222640_487432_1', 'trial_T20190908_052232_887934_2', 'trial_T20190907_070152_814652_2', 'trial_T20190910_112922_368384_1',
             #                'trial_T20190906_201148_878110_2', 'trial_T20190909_124835_952557_2', 'trial_T20190906_201106_979461_0', 'trial_T20190908_124340_258012_1', 'trial_T20190907_183137_838565_1',
@@ -279,7 +279,13 @@ class AlfredEvaluator(Evaluator):
 
         prev_steps = []
         prev_action_msg = []
-        prev_all_score = []
+        true_options = []
+
+        ground_truth = valid_seen_gt_steps[traj_data['task_id']]
+
+        step_idx = 0
+        GT_idx = 0
+        GT_arr = [-1] * len(ground_truth)
         while not done:
             if self.cfg.alfred.eval_set == 'train' and train_gt_steps is not None:
                 # sanity check for thor connector: use ground-truth steps
@@ -290,15 +296,11 @@ class AlfredEvaluator(Evaluator):
                 prompt = ''
             else:
                 # find next step
-                step, prompt, all_score = planner.plan_step_by_step(instruction_text, prev_steps, prev_action_msg)
+                step, prompt, prob = planner.plan_step_by_step(instruction_text, prev_steps, prev_action_msg)
 
                 if step is None:
                     log.info("\tmax step reached")
                     break
-
-                if all_score is not None:
-                    prev_all_score.append(all_score)
-                    print('all score: ', prev_all_score[t][:10])
 
             # prompt 로그
             # if log_prompt:
@@ -308,18 +310,20 @@ class AlfredEvaluator(Evaluator):
             log.info(f'{len(prev_steps) + 1}. {step}')
             prev_steps.append(step)
 
-            print('Ground Truth :', valid_seen_gt_steps[traj_data['task_id']])      # traj_data['task_id'] : trial_T20190909_081908_677973
-            print('step :', step)
+            print('Ground Truth :', ground_truth)      # traj_data['task_id'] : trial_T20190909_081908_677973
+            print('step :', step, ', prob :', prob)
+            step_prob_pair = {'step': step, 'prob': prob}
 
-            if t >= len(valid_seen_gt_steps[traj_data['task_id']]):
-                print('GT count exceeded')
-            elif step == valid_seen_gt_steps[traj_data['task_id']][t]:
-                print('match')
-            elif step != valid_seen_gt_steps[traj_data['task_id']][t]:
-                print('mismatch')
-            else:
-                print('except')
-            
+            # corresponding number compared to the ground truth
+            # If there is a duplicate, the first planned step is numbered.
+            step_idx += 1
+            if not step in ['done', 'done.', 'done.\n']:
+                if ground_truth[GT_idx] == step_prob_pair['step']:
+                    GT_arr[GT_idx] = step_idx
+                    GT_idx += 1
+                    true_options.append(step_prob_pair['prob'])
+                    print('GT_arr: ', GT_arr, ', true_options: ', true_options)
+
             if step in ['done', 'done.', 'done.\n']:
                 done = True
                 prev_action_msg.append('')
@@ -341,7 +345,7 @@ class AlfredEvaluator(Evaluator):
             t_reward, t_done = env.get_transition_reward()
             reward += t_reward
             t += 1
-        
+
         # while 끝나면 target goal : {}... success : True or False 출력하는거 나옴
         # print('이 task의 최종 length: ', len(prev_diff_score), '  prev_diff_score : ', prev_diff_score)
 
@@ -367,6 +371,17 @@ class AlfredEvaluator(Evaluator):
         self.save_result(env, log_entry, imgs, save_path)
 
         return log_entry
+    
+    def step_compare(self, pair, ground_truth):
+        GT_arr = [-1] * len(ground_truth)
+        global step_idx
+
+        print('before: ', step_idx)
+        step_idx += 1
+        print('after: ', step_idx)
+        if ground_truth[GT_idx] == pair['step']:
+            GT_arr[GT_idx] = step_idx
+            GT_idx += 1
 
     def save_result(self, env, result_dict, imgs, base_path='results'):
         if result_dict:
