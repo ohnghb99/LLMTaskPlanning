@@ -90,7 +90,7 @@ class AlfredEvaluator(Evaluator):
         # find만 겁나많이할때 오류남 
 
         if cfg.planner.debug_mode:  # debug mode
-            debug_files = ['trial_T20190909_111324_949106'] # trial_T20190907_054906_608944, 짧은거 : trial_T20190909_081908_677973
+            debug_files = ['trial_T20190908_033721_967359'] # trial_T20190909_111324_949106, trial_T20190907_054906_608944, 짧은거 : trial_T20190909_081908_677973
             # debug_files = ['trial_T20190908_050518_595510_0', 'trial_T20190908_023400_293044_0', 'trial_T20190908_175253_104175_2', 'trial_T20190909_141915_002879_1', 'trial_T20190906_194903_710920_2',
             #                'trial_T20190908_033721_967359_0', 'trial_T20190907_222640_487432_1', 'trial_T20190908_052232_887934_2', 'trial_T20190907_070152_814652_2', 'trial_T20190910_112922_368384_1',
             #                'trial_T20190906_201148_878110_2', 'trial_T20190909_124835_952557_2', 'trial_T20190906_201106_979461_0', 'trial_T20190908_124340_258012_1', 'trial_T20190907_183137_838565_1',
@@ -398,28 +398,25 @@ class AlfredEvaluator(Evaluator):
         # write img
         widths, heights = zip(*(i.size for i in imgs))
         total_width = widths[0] * 5
-        textbox_height = 70  # max two lines
+        textbox_height = 160  # max six lines
         total_height = math.ceil(len(imgs) / 5) * heights[0] + textbox_height
         new_im = Image.new('RGB', (total_width, total_height), color='white')
 
         # draw text
         if result_dict:
             text = 'Instruction: ' + result_dict['goal_instr']
-            #text2 = 'goal: ' + json.dumps(env.task.get_targets())
-            text_gt_arr = ','.join(str(s) for s in GTarr)
+            #text2 = 'goal: ' + json.dumps(env.task.get_targets())      # goal condition
+            text_gt_arr = '\nGTarr: ' + ','.join(str(s) for s in GTarr)
             text_gt = ', '.join(GTstep)
             text_color = (0, 0, 0)  # black
             # text_color = (100, 255, 100) if result_dict['success'] else (255, 100, 100)
-            lines = textwrap.wrap(text, width=110)
-            #lines2 = textwrap.wrap(text2, width=110)
-            lines2 = textwrap.wrap(text_gt_arr, width=110)
-            #lines3 = lines + lines2
             draw = ImageDraw.Draw(new_im)
-            y_start = 10 if len(lines) > 1 else 35
-            #draw.multiline_text((10, y_start), '\n'.join(lines3), font=font, fill=text_color)
-            draw.text((2, 2), text, font=font, fill=text_color)
-            #draw.text((2, y_start + 5), text2, font=font, fill=text_color)
-            draw.text((2, y_start + 4), 'true step: ' + text_gt_arr + '   GTstep: ' + text_gt, font=font, fill=text_color)
+            draw.text((2, 2), text + text_gt_arr, font=font, fill=text_color)
+            lines = textwrap.wrap(text_gt, width=120)
+            y_start = 50 if len(lines) > 1 else 70
+            for line in lines:
+                draw.text((2, y_start + 3), line, font=font, fill=text_color)
+                y_start += 25
             y_offset = textbox_height
         else:
             y_offset = 0
