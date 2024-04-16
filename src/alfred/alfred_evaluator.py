@@ -337,7 +337,7 @@ class AlfredEvaluator(Evaluator):
                 action_ret = env.llm_skill_interact(step_to_execute)
             except Exception as e:
                 log.warning(e)
-            imgs.append(env.write_step_on_img(self.cfg.planner.use_predefined_prompt, t+1, action_ret))
+            imgs.append(env.write_step_on_img(self.cfg, t+1, action_ret, GT_arr))
             prev_action_msg.append(action_ret['message'])
 
             if not action_ret['success']:
@@ -374,17 +374,6 @@ class AlfredEvaluator(Evaluator):
 
         return log_entry
     
-    def step_compare(self, pair, ground_truth):
-        GT_arr = [-1] * len(ground_truth)
-        global step_idx
-
-        print('before: ', step_idx)
-        step_idx += 1
-        print('after: ', step_idx)
-        if ground_truth[GT_idx] == pair['step']:
-            GT_arr[GT_idx] = step_idx
-            GT_idx += 1
-
     def save_result(self, GTstep, GTarr, env, result_dict, imgs, base_path='results'):
         if result_dict:
             filename = f"{result_dict['trial']}_{result_dict['repeat_idx']}"
@@ -412,11 +401,12 @@ class AlfredEvaluator(Evaluator):
             # text_color = (100, 255, 100) if result_dict['success'] else (255, 100, 100)
             draw = ImageDraw.Draw(new_im)
             draw.text((2, 2), text + text_gt_arr, font=font, fill=text_color)
-            lines = textwrap.wrap(text_gt, width=120)
-            y_start = 50 if len(lines) > 1 else 70
-            for line in lines:
-                draw.text((2, y_start + 3), line, font=font, fill=text_color)
-                y_start += 25
+            if self.cfg.planner.true_steps:
+                lines = textwrap.wrap(text_gt, width=120)
+                y_start = 50 if len(lines) > 1 else 70
+                for line in lines:
+                    draw.text((2, y_start + 3), line, font=font, fill=text_color)
+                    y_start += 25
             y_offset = textbox_height
         else:
             y_offset = 0

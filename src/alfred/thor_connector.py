@@ -12,7 +12,7 @@ from gen.utils.game_util import get_objects_with_name_and_prop
 from alfred.utils import natural_word_to_ithor_name
 
 log = logging.getLogger(__name__)
-
+arr = 0
 
 class ThorConnector(ThorEnv):
     def __init__(self, x_display=constants.X_DISPLAY,
@@ -38,17 +38,34 @@ class ThorConnector(ThorEnv):
         kd_tree = spatial.KDTree(free_positions)
         return free_positions, kd_tree
 
-    def write_step_on_img(self, cfg, idx, description):
+    def write_step_on_img(self, cfg, idx, description, gt_arr):
         img = Image.fromarray(self.last_event.frame)
         text = str(idx) + ':' + description['action']
         lines = textwrap.wrap(text, width=20)
         y_text = 6
+        global arr
         draw = ImageDraw.Draw(img)
-        for line in lines:
-            width, height = self.font.getsize(line)
-            draw.text((6, y_text), line, font=self.font, fill=(255, 255, 255))
-            y_text += height
-        if cfg is True:
+
+        # draw green color when true step
+        if cfg.planner.true_steps:
+            if gt_arr[arr] == idx:
+                for line in lines:
+                    width, height = self.font.getsize(line)
+                    draw.text((6, y_text), line, font=self.font, fill=(118, 185, 0))    # nvidia green
+                    y_text += height
+                arr += 1
+            else:
+                for line in lines:
+                    width, height = self.font.getsize(line)
+                    draw.text((6, y_text), line, font=self.font, fill=(255, 255, 255))
+                    y_text += height
+        else:
+            for line in lines:
+                width, height = self.font.getsize(line)
+                draw.text((6, y_text), line, font=self.font, fill=(255, 255, 255))
+                y_text += height
+
+        if cfg.planner.use_predefined_prompt:
             if not description['success']:
                 text_msg = 'error : ' + description['message']
                 lines = textwrap.wrap(text_msg, width=20)
@@ -56,7 +73,7 @@ class ThorConnector(ThorEnv):
                     width, height = self.font.getsize(line)
                     draw.text((6, y_text + 6), line, font=self.font, fill=(255, 0, 0))
                     y_text += height
-            
+
         return img
 
 
