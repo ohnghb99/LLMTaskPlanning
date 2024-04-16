@@ -306,6 +306,8 @@ class AlfredEvaluator(Evaluator):
             # if log_prompt:
             #     log.info(prompt)
             
+            #step = input()
+            
             log.info('-------------------')
             log.info(f'{len(prev_steps) + 1}. {step}')
             prev_steps.append(step)
@@ -368,7 +370,7 @@ class AlfredEvaluator(Evaluator):
                     'success': success}
 
         # save
-        self.save_result(env, log_entry, imgs, save_path)
+        self.save_result(ground_truth, GT_arr, env, log_entry, imgs, save_path)
 
         return log_entry
     
@@ -383,7 +385,7 @@ class AlfredEvaluator(Evaluator):
             GT_arr[GT_idx] = step_idx
             GT_idx += 1
 
-    def save_result(self, env, result_dict, imgs, base_path='results'):
+    def save_result(self, GTstep, GTarr, env, result_dict, imgs, base_path='results'):
         if result_dict:
             filename = f"{result_dict['trial']}_{result_dict['repeat_idx']}"
 
@@ -403,17 +405,21 @@ class AlfredEvaluator(Evaluator):
         # draw text
         if result_dict:
             text = 'Instruction: ' + result_dict['goal_instr']
-            text2 = 'goal: ' + json.dumps(env.task.get_targets())
+            #text2 = 'goal: ' + json.dumps(env.task.get_targets())
+            text_gt_arr = ','.join(str(s) for s in GTarr)
+            text_gt = ', '.join(GTstep)
             text_color = (0, 0, 0)  # black
             # text_color = (100, 255, 100) if result_dict['success'] else (255, 100, 100)
             lines = textwrap.wrap(text, width=110)
-            lines2 = textwrap.wrap(text2, width=110)
+            #lines2 = textwrap.wrap(text2, width=110)
+            lines2 = textwrap.wrap(text_gt_arr, width=110)
             #lines3 = lines + lines2
             draw = ImageDraw.Draw(new_im)
             y_start = 10 if len(lines) > 1 else 35
             #draw.multiline_text((10, y_start), '\n'.join(lines3), font=font, fill=text_color)
             draw.text((2, 2), text, font=font, fill=text_color)
-            draw.text((2, y_start + 5), text2, font=font, fill=text_color)
+            #draw.text((2, y_start + 5), text2, font=font, fill=text_color)
+            draw.text((2, y_start + 4), 'true step: ' + text_gt_arr + '   GTstep: ' + text_gt, font=font, fill=text_color)
             y_offset = textbox_height
         else:
             y_offset = 0
