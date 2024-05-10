@@ -32,6 +32,7 @@ from src.evaluator import Evaluator
 splits = 'alfred/data/splits/oct21.json'
 font = ImageFont.truetype("/usr/share/fonts/truetype/ubuntu/UbuntuMono-B.ttf", 24)
 log = logging.getLogger(__name__)
+idx = 0
 
 
 class AlfredEvaluator(Evaluator):
@@ -89,7 +90,7 @@ class AlfredEvaluator(Evaluator):
 
         # find만 겁나많이할때 오류남 
 
-        if True:  # debug mode
+        if False:  # debug mode
             debug_files = ['trial_T20190906_234406_356490'] # trial_T20190907_054906_608944
             # debug_files = ['trial_T20190908_050518_595510_0', 'trial_T20190908_023400_293044_0', 'trial_T20190908_175253_104175_2', 'trial_T20190909_141915_002879_1', 'trial_T20190906_194903_710920_2',
             #                'trial_T20190908_033721_967359_0', 'trial_T20190907_222640_487432_1', 'trial_T20190908_052232_887934_2', 'trial_T20190907_070152_814652_2', 'trial_T20190910_112922_368384_1',
@@ -115,6 +116,7 @@ class AlfredEvaluator(Evaluator):
         start = time.time()
         x_display = cfg.alfred.x_display
         save_path = cfg.out_dir
+        os.mkdir(save_path+'/test')
         results, fail_totals, success_totals = self.evaluate_main(files, args_dict, planner, x_display, save_path)
         # print('before entropy calc fail totals : ', fail_totals)
 
@@ -277,8 +279,11 @@ class AlfredEvaluator(Evaluator):
         done, success = False, False
         t = 0
         reward = 0
+        img_num = 0
+        global idx
+        seperate_imgs_path = save_path+'/test'  
         imgs = [Image.fromarray(env.last_event.frame)]
-
+    
         prev_steps = []
         prev_action_msg = []
         prev_diff_score = []
@@ -332,7 +337,13 @@ class AlfredEvaluator(Evaluator):
                 action_ret = env.llm_skill_interact(step_to_execute)
             except Exception as e:
                 log.warning(e)
-            imgs.append(env.write_step_on_img(self.cfg.planner.use_predefined_prompt, t+1, action_ret))
+            draw_imgs, origin_imgs = env.write_step_on_img(self.cfg.planner.use_predefined_prompt, t+1, action_ret)
+            imgs.append(draw_imgs)
+            
+            origin_imgs.save(os.path.join(seperate_imgs_path, f"{idx}_{img_num}.png"))
+            img_num += 1
+            print('num: ', img_num, ', ', idx)
+
             prev_action_msg.append(action_ret['message'])
 
             if not action_ret['success']:
@@ -343,6 +354,8 @@ class AlfredEvaluator(Evaluator):
             reward += t_reward
             t += 1
         
+        idx += 1
+
         # while 끝나면 target goal : {}... success : True or False 출력하는거 나옴
         print('이 task의 최종 length: ', len(prev_diff_score), '  prev_diff_score : ', prev_diff_score)
 
