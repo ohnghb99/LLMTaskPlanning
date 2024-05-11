@@ -288,6 +288,10 @@ class AlfredEvaluator(Evaluator):
         prev_action_msg = []
         prev_diff_score = []
         while not done:
+
+            origin_imgs = env.get_sim_img()
+            origin_imgs.save(os.path.join(seperate_imgs_path, f"{idx}_{img_num}.png"))
+
             if self.cfg.alfred.eval_set == 'train' and train_gt_steps is not None:
                 # sanity check for thor connector: use ground-truth steps
                 if t >= len(train_gt_steps[traj_data['task_id']]):
@@ -337,13 +341,8 @@ class AlfredEvaluator(Evaluator):
                 action_ret = env.llm_skill_interact(step_to_execute)
             except Exception as e:
                 log.warning(e)
-            draw_imgs, origin_imgs = env.write_step_on_img(self.cfg.planner.use_predefined_prompt, t+1, action_ret)
-            imgs.append(draw_imgs)
             
-            origin_imgs.save(os.path.join(seperate_imgs_path, f"{idx}_{img_num}.png"))
-            img_num += 1
-            print('num: ', img_num, ', ', idx)
-
+            imgs.append(env.write_step_on_img(self.cfg.planner.use_predefined_prompt, t+1, action_ret))
             prev_action_msg.append(action_ret['message'])
 
             if not action_ret['success']:
@@ -353,6 +352,7 @@ class AlfredEvaluator(Evaluator):
             t_reward, t_done = env.get_transition_reward()
             reward += t_reward
             t += 1
+            img_num += 1
         
         idx += 1
 

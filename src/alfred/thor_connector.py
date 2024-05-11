@@ -37,10 +37,13 @@ class ThorConnector(ThorEnv):
         free_positions = np.array([[p['x'], p['y'], p['z']] for p in free_positions])
         kd_tree = spatial.KDTree(free_positions)
         return free_positions, kd_tree
+    
+    def get_sim_img(self):
+        origin_img = Image.fromarray(self.last_event.frame)
+        return origin_img
 
     def write_step_on_img(self, cfg, idx, description):
         img = Image.fromarray(self.last_event.frame)
-        origin_img = Image.fromarray(self.last_event.frame)
         text = str(idx) + ':' + description['action']
         lines = textwrap.wrap(text, width=20)
         y_text = 6
@@ -58,7 +61,7 @@ class ThorConnector(ThorEnv):
                     draw.text((6, y_text + 6), line, font=self.font, fill=(255, 0, 0))
                     y_text += height
             
-        return img, origin_img
+        return img
 
 
     def find_close_reachable_position(self, loc, nth=1):
