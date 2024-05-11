@@ -214,11 +214,11 @@ class TaskPlanner:
 
         return step_seq, skill_set_size_seq
 
-    def plan_step_by_step(self, query, prev_steps=(), prev_msgs=()):
+    def plan_step_by_step(self, query, vision_context, prev_steps=(), prev_msgs=()):
         if len(prev_steps) >= self.max_steps:
             return None, None, None
 
-        prompt = self.prompt + f'Human: {query.strip()}\nRobot: 1. '
+        prompt = self.prompt + f'Human: {query.strip()}\nobservation: {vision_context}\nRobot: 1. '
 
         for i, (step, msg) in enumerate(zip(prev_steps, prev_msgs)):
             if self.use_predefined_prompt and len(msg) > 0:

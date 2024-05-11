@@ -21,6 +21,8 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import seaborn as sns 
 import numpy as np
+import base64
+import requests
 
 import logging
 import hydra
@@ -288,9 +290,12 @@ class AlfredEvaluator(Evaluator):
         prev_action_msg = []
         prev_diff_score = []
         while not done:
-
+            # save each sim img
             origin_imgs = env.get_sim_img()
             origin_imgs.save(os.path.join(seperate_imgs_path, f"{idx}_{img_num}.png"))
+
+            vision_context = self.get_vision_text(seperate_imgs_path, idx, img_num)
+            print('vision_context: ', vision_context)
 
             if self.cfg.alfred.eval_set == 'train' and train_gt_steps is not None:
                 # sanity check for thor connector: use ground-truth steps
@@ -301,7 +306,7 @@ class AlfredEvaluator(Evaluator):
                 prompt = ''
             else:
                 # find next step
-                step, prompt, diff_score = planner.plan_step_by_step(instruction_text, prev_steps, prev_action_msg)
+                step, prompt, diff_score = planner.plan_step_by_step(instruction_text, vision_context, prev_steps, prev_action_msg)
 
                 if step is None:
                     log.info("\tmax step reached")
@@ -427,3 +432,43 @@ class AlfredEvaluator(Evaluator):
 
         success_str = 'success' if result_dict['success'] else 'fail'
         new_im.save(os.path.join(base_path, f"{filename}_{success_str}.png"))
+
+    def encode_img(self, save_path, idx, img_num):
+        with open(os.path.join(save_path + '/', f'{idx}_{img_num}.png'), 'rb') as f:
+            return base64.b64encode(f.read()).decode('utf-8')
+        
+    def get_vision_text(self, save_path, idx, img_num):
+        base64_image = self.encode_img(save_path, idx, img_num)
+
+        headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {self.cfg.planner.openai_api_key}"
+        }
+
+        payload = {
+        "model": "gpt-4-turbo",
+        "messages": [
+            {
+            "role": "user",
+            "content": [
+                {
+                "type": "text",
+                "text": "What’s in this image?"
+                },
+                {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image}"
+                }
+                }
+            ]
+            }
+        ],
+        "max_tokens": 300
+        }
+
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        #print(response.json()['choices'][0]['message']['content'])
+
+        return response.json()['choices'][0]['message']['content']
+
