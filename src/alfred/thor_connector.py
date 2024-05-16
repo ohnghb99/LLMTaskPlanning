@@ -12,7 +12,8 @@ from gen.utils.game_util import get_objects_with_name_and_prop
 from alfred.utils import natural_word_to_ithor_name
 
 log = logging.getLogger(__name__)
-
+arr = 0
+task_num = 1
 
 class ThorConnector(ThorEnv):
     def __init__(self, x_display=constants.X_DISPLAY,
@@ -37,22 +38,48 @@ class ThorConnector(ThorEnv):
         free_positions = np.array([[p['x'], p['y'], p['z']] for p in free_positions])
         kd_tree = spatial.KDTree(free_positions)
         return free_positions, kd_tree
-    
-    def get_sim_img(self):
-        origin_img = Image.fromarray(self.last_event.frame)
-        return origin_img
 
-    def write_step_on_img(self, cfg, idx, description):
+    def write_step_on_img(self, cfg, idx, description, gt_arr, task_idx):
+        global arr, task_num
+
+        if task_num == task_idx:
+            print('task_num == task_idx!')
+            arr = 0
+            task_num += 1
+        else:
+            print('task_num != task_idx!')
+            task_num = 1
+            
+            
         img = Image.fromarray(self.last_event.frame)
         text = str(idx) + ':' + description['action']
         lines = textwrap.wrap(text, width=20)
         y_text = 6
         draw = ImageDraw.Draw(img)
-        for line in lines:
-            width, height = self.font.getsize(line)
-            draw.text((6, y_text), line, font=self.font, fill=(255, 255, 255))
-            y_text += height
-        if cfg is True:
+
+        # draw green color when true step
+        if cfg.planner.true_steps:
+            print('arr: ', arr)
+            print('idx: ', idx)
+            print('gt_arr[arr]: ', gt_arr[arr])          # TODO: arr 초기화 안되고있음
+            if gt_arr[arr] == idx:
+                for line in lines:
+                    width, height = self.font.getsize(line)
+                    draw.text((6, y_text), line, font=self.font, fill=(118, 185, 0))    # nvidia green
+                    y_text += height
+                arr += 1
+            else:
+                for line in lines:
+                    width, height = self.font.getsize(line)
+                    draw.text((6, y_text), line, font=self.font, fill=(255, 255, 255))
+                    y_text += height
+        else:
+            for line in lines:
+                width, height = self.font.getsize(line)
+                draw.text((6, y_text), line, font=self.font, fill=(255, 255, 255))
+                y_text += height
+
+        if cfg.planner.use_predefined_prompt:
             if not description['success']:
                 text_msg = 'error : ' + description['message']
                 lines = textwrap.wrap(text_msg, width=20)
@@ -60,7 +87,7 @@ class ThorConnector(ThorEnv):
                     width, height = self.font.getsize(line)
                     draw.text((6, y_text + 6), line, font=self.font, fill=(255, 0, 0))
                     y_text += height
-            
+        
         return img
 
 

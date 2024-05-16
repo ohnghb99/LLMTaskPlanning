@@ -52,7 +52,7 @@ def list_actions_objs():
     print('action-recep', action_receptacle)
 
 
-def load_tasks(split='valid_seen'):
+def load_tasks(split='valid_unseen'):
     base_path = Path(data_path) / split
     tasks = defaultdict(list)
     for path in sorted(base_path.glob("**/traj_data.json")):
@@ -194,7 +194,7 @@ def convert_low_level_action_to_nl_skill(action, args, cur_obj):
     return steps, ret_obj
 
 def export_train_examples(export=True, export_text_samples=True):
-    tasks = load_tasks('valid_seen')
+    tasks = load_tasks('valid_unseen')
     selected_samples = []
 
     for key in sorted(tasks.keys()):
@@ -278,12 +278,14 @@ def export_train_examples(export=True, export_text_samples=True):
 
     if export:
         #with open('resource/alfred_examples_for_prompt.json', 'w') as fp:
-        with open('resource/alfred_val_examples_for_prompt.json', 'w') as fp:    
+        #with open('resource/alfred_val_examples_for_prompt.json', 'w') as fp:
+        with open('resource/alfred_val_unseen_examples_for_prompt.json', 'w') as fp:    
             json.dump(selected_samples, fp, indent=4)
 
     if export_text_samples:
         #with open(f'resource/alfred_train_text_samples.txt', 'w') as fp:
-        with open(f'resource/alfred_val_text_samples.txt', 'w') as fp:
+        #with open(f'resource/alfred_val_text_samples.txt', 'w') as fp:
+        with open(f'resource/alfred_val_unseen_text_samples.txt', 'w') as fp:
             for sample in selected_samples:
                 # fp.write(f'TaskId: {sample["task id"]}\n')
                 fp.write(f'Human: {sample["task description"]}\n')

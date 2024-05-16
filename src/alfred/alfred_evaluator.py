@@ -21,8 +21,6 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import seaborn as sns 
 import numpy as np
-import base64
-import requests
 
 import logging
 import hydra
@@ -34,7 +32,6 @@ from src.evaluator import Evaluator
 splits = 'alfred/data/splits/oct21.json'
 font = ImageFont.truetype("/usr/share/fonts/truetype/ubuntu/UbuntuMono-B.ttf", 24)
 log = logging.getLogger(__name__)
-idx = 0
 
 
 class AlfredEvaluator(Evaluator):
@@ -77,9 +74,8 @@ class AlfredEvaluator(Evaluator):
         files = []
 
         # exclude two obj task
-        for e in splits[cfg.alfred.eval_set]:       # e : {'repeat_idx': 2, 'task': 'pick_two_obj_and_place-SoapBar-None-GarbageCan-418/trial_T20190909_055649_717880'} 이런 형식을 가지고있음
+        for e in splits[cfg.alfred.eval_set]:
             if 'pick_two_obj_and_place' not in e['task']:
-                # print(e['task'])       # task type 확인 가능
                 files.append(e)
 
         # select a subset of tasks
@@ -90,125 +86,45 @@ class AlfredEvaluator(Evaluator):
             print('total files num : ', len(files))
             random.seed(cfg.planner.random_seed)
 
-        # find만 겁나많이할때 오류남 
-
-        if False:  # debug mode
-            debug_files = ['trial_T20190906_234406_356490'] # trial_T20190907_054906_608944
-            # debug_files = ['trial_T20190908_050518_595510_0', 'trial_T20190908_023400_293044_0', 'trial_T20190908_175253_104175_2', 'trial_T20190909_141915_002879_1', 'trial_T20190906_194903_710920_2',
-            #                'trial_T20190908_033721_967359_0', 'trial_T20190907_222640_487432_1', 'trial_T20190908_052232_887934_2', 'trial_T20190907_070152_814652_2', 'trial_T20190910_112922_368384_1',
-            #                'trial_T20190906_201148_878110_2', 'trial_T20190909_124835_952557_2', 'trial_T20190906_201106_979461_0', 'trial_T20190908_124340_258012_1', 'trial_T20190907_183137_838565_1',
-            #                'trial_T20190909_112912_154874_2', 'trial_T20190906_201106_979461_1', 'trial_T20190907_060234_011675_1', 'trial_T20190909_032318_169393_1', 'trial_T20190909_055248_059513_2',
-            #                'trial_T20190906_194903_710920_0', 'trial_T20190908_122858_883968_2', 'trial_T20190907_114931_692464_1', 'trial_T20190907_061934_041977_0', 'trial_T20190909_051813_197569_0',
-            #                'trial_T20190906_190942_706186_1', 'trial_T20190908_122858_883968_1', 'trial_T20190906_201148_878110_1', 'trial_T20190908_173610_612042_1', 'trial_T20190908_192636_561572_2',
-            #                'trial_T20190907_232225_725376_2', 'trial_T20190906_235214_456832_1', 'trial_T20190907_070857_687585_4', 'trial_T20190909_124835_952557_1', 'trial_T20190909_193045_208933_0', 
-            #                'trial_T20190909_055248_059513_1', 'trial_T20190908_191121_189259_2', 'trial_T20190909_154212_097094_0', 'trial_T20190908_110131_524518_0', 'trial_T20190908_050518_595510_1',
-            #                'trial_T20190908_023400_293044_2', 'trial_T20190909_045605_307949_0', 'trial_T20190907_151802_277016_0', 'trial_T20190906_192823_237997_1', 'trial_T20190907_024634_972453_0', 
-            #                'trial_T20190911_131350_027076_0', 'trial_T20190909_064046_163660_0', 'trial_T20190907_183137_838565_2', 'trial_T20190911_045200_839773_0', 'trial_T20190909_064046_163660_5',
-            #                'trial_T20190907_041436_588106_2']
+        if cfg.planner.debug_mode:  # debug mode
+            debug_files = ['trial_T20190907_151802_277016']
             new_files = []
-            print('debug files length : ', len(debug_files))
             
             for file in files:
                 if any(debug_file in file['task'] for debug_file in debug_files):
                     new_files.append(file)
-            print(new_files, ', debug file num : ', len(new_files))
             files = new_files
 
         # run
         start = time.time()
         x_display = cfg.alfred.x_display
         save_path = cfg.out_dir
-        os.mkdir(save_path+'/test')
-        results, fail_totals, success_totals = self.evaluate_main(files, args_dict, planner, x_display, save_path)
-        # print('before entropy calc fail totals : ', fail_totals)
+        nonconformity_score = []
+        results, true_options, plan_success_rate = self.evaluate_main(files, args_dict, planner, x_display, save_path)
 
-        # # print entropy
-        # result_entropy_fail = []
-        # result_entropy_success = []
+        data_num = 0
 
-        # fail_avg = self.evaluate_evg(fail_totals)
-        # success_avg = self.evaluate_evg(success_totals)
-        # print('fail_average : ', fail_avg)
-        # print('total_fail_average : ', np.mean(self.evaluate_evg(fail_totals)))
-        # print('total_fail_average_1 : ', np.percentile(self.evaluate_evg(fail_totals), 25))
-        # print('total_fail_average_3 : ', np.percentile(self.evaluate_evg(fail_totals), 75))
+        for data in true_options:
+            data_num += len(data)
+            if len(data) > 0:
+                true_step_smx = np.max(data)
+                nonconformity_score.append(1 - true_step_smx)
 
-        # entropy_fail = self.entropy(fail_totals)
-        # print('entropy_fail : ', entropy_fail)
-        # entropy_success = self.entropy(success_totals)
-
-        # result_entropy_fail = entropy_fail
-        # result_entropy_success = entropy_success
-
-        # print('result_entropy_fail average : ', np.mean(result_entropy_fail))
-        # print('result_entropy_success average : ', np.mean(result_entropy_success))
-
-        # # save plots
-        # _, ax = plt.subplots(nrows=1, figsize = (80, 15))           # 80으로 하니까 task 수 다 나옴
-
-        # ax.set_xlabel('# of Task', fontsize=50)
-        # ax.set_ylabel('score difference', fontsize=50)
-
-        # # ax[1].set_xlabel('# of Task', fontsize=15)
-        # # ax[1].set_ylabel('score difference value & entropy', fontsize=15)
-
-        # # ax.set_title('probability distribution', fontsize=50)
-        # # ax[1].set_title('success distribution & entropy', fontsize=20)
-
-        # sns.lineplot(data=fail_avg, ax=ax, linewidth=4)
-        # # sns.lineplot(data=success_avg, ax=ax, color='darkgreen', linewidth=4)
-        # # sns.swarmplot(data=success_totals, ax=ax[1])
-        # model_wise_threshold = -0.58945
-        # plt.axhline(model_wise_threshold, 0, 1, color='darkorange', linestyle='--', linewidth=3)
-        
-        # # 축 눈금 사이즈
-        # plt.xticks(fontsize=35)
-        # plt.yticks(fontsize=35)
-
-        # # sns.lineplot(data=result_entropy_fail, ax=ax[0])
-        # # sns.lineplot(data=result_entropy_success, ax=ax[1])
-        # plt.savefig(os.path.join(save_path, 'score difference.png'))        # 스레드 에러나는데 무시해도 됨ㅇㅇ
-
-        # # print results
-        # log.info(results)
-        # log.info(f'find diff scores (fail) : {fail_totals}')        # fail task에 대한 diff score 수집
-        # log.info(f'find diff scores (success) : {success_totals}')
-        
+        # ----------------------------------------------------------------------
         n = len(results)
         n_success = 0
         for e in results:
             if e['success']:
                 n_success += 1
+        
+        log.info(f'real success rate : {(np.sum(plan_success_rate) / len(plan_success_rate)):.2f} %')
         log.info(f'success rate: {n_success / n * 100:.2f} % ({n_success}/{n})')
         log.info(f'elapsed: {str(datetime.timedelta(seconds=(time.time() - start)))}')
 
-    def evaluate_evg(self, probs):
-        averages = []
-
-        for values in probs:
-            values = np.array(values)
-            avg = np.mean(values)
-            averages.append(avg)
-        
-        return averages
-
-    def entropy(self, probs):
-        entropies = []
-
-        for values in probs:
-            values = np.array(values)
-            _, counts = np.unique(values, return_counts=True)
-            probabilities = counts / len(values)
-            entropy = -np.sum(probabilities * np.log2(probabilities[probabilities > 0]))
-
-            entropies.append(entropy)
-
-        return entropies
-
     def evaluate_main(self, tasks, args_dict, planner, x_display, save_path):
         results = []
-        fail_total = []
-        success_total = []
+        true_steps = []
+        plan_success_rate_list = []
         model_args = dotdict(args_dict)
         env = ThorConnector(x_display=x_display)
         
@@ -240,15 +156,15 @@ class AlfredEvaluator(Evaluator):
             try:
                 log.info(task)
                 traj_data = load_task_json(task)
-                r_idx = task['repeat_idx']      # trial_T.....__0 <- 맨마지막 순서가 r_idx (task['repeat_idx'])
-                log.info(f"Evaluating ({i+1}/{len(tasks)}): {traj_data['root']}")
-                result, total_diff = self.evaluate_task(env, traj_data, r_idx, model_args, planner, save_path, log_prompt=(i==0), train_gt_steps=train_gt_steps, valid_seen_gt_steps=valid_seen_gt_steps)
-                if result['success'] is not True:
-                    print('not success!! total append ok')
-                    fail_total.append(total_diff)
-                else:
-                    print('success!! total append ok')
-                    success_total.append(total_diff)
+                r_idx = task['repeat_idx']
+                idx = i + 1
+                log.info(f"Evaluating ({idx}/{len(tasks)}): {traj_data['root']}")
+                result, true_options, step_num = self.evaluate_task(env, traj_data, r_idx, idx, model_args, planner, save_path, log_prompt=(i==0), train_gt_steps=train_gt_steps, valid_seen_gt_steps=valid_seen_gt_steps)
+
+                plan_success_rate = len(true_options) / step_num * 100
+                plan_success_rate_list.append(plan_success_rate)
+
+                true_steps.append(list(true_options))
                 results.append(result)
 
             except Exception as e:
@@ -256,9 +172,9 @@ class AlfredEvaluator(Evaluator):
                 traceback.print_exc()
                 log.info("Error: " + repr(e))
 
-        return results, fail_total, success_total
+        return results, true_steps, plan_success_rate_list
     
-    def evaluate_task(self, env, traj_data, r_idx, model_args, planner, save_path, log_prompt=False, train_gt_steps=None, valid_seen_gt_steps=None):
+    def evaluate_task(self, env, traj_data, r_idx, idx, model_args, planner, save_path, log_prompt=False, train_gt_steps=None, valid_seen_gt_steps=None):
         # setup scene
         scene_num = traj_data['scene']['scene_num']
         object_poses = traj_data['scene']['object_poses']
@@ -281,22 +197,18 @@ class AlfredEvaluator(Evaluator):
         done, success = False, False
         t = 0
         reward = 0
-        img_num = 0
-        global idx
-        seperate_imgs_path = save_path+'/test'  
         imgs = [Image.fromarray(env.last_event.frame)]
-    
+
         prev_steps = []
         prev_action_msg = []
-        prev_diff_score = []
+        true_options = []
+
+        ground_truth = valid_seen_gt_steps[traj_data['task_id']]
+
+        step_idx = 0
+        GT_idx = 0
+        GT_arr = [-1] * len(ground_truth)
         while not done:
-            # save each sim img
-            origin_imgs = env.get_sim_img()
-            origin_imgs.save(os.path.join(seperate_imgs_path, f"{idx}_{img_num}.png"))
-
-            vision_context = self.get_vision_text(seperate_imgs_path, idx, img_num)
-            print('vision_context: ', vision_context)
-
             if self.cfg.alfred.eval_set == 'train' and train_gt_steps is not None:
                 # sanity check for thor connector: use ground-truth steps
                 if t >= len(train_gt_steps[traj_data['task_id']]):
@@ -306,35 +218,26 @@ class AlfredEvaluator(Evaluator):
                 prompt = ''
             else:
                 # find next step
-                step, prompt, diff_score = planner.plan_step_by_step(instruction_text, vision_context, prev_steps, prev_action_msg)
+                step, prompt, prob = planner.plan_step_by_step(instruction_text, prev_steps, prev_action_msg)
 
                 if step is None:
                     log.info("\tmax step reached")
                     break
-                
-                if diff_score is not None:
-                    prev_diff_score.append(diff_score)
-                    # print('length: ', len(prev_diff_score), ', prev_diff_score : ', prev_diff_score)
-
-            # prompt 로그
-            # if log_prompt:
-            #     log.info(prompt)
-
+            
+            log.info('-------------------')
             log.info(f'{len(prev_steps) + 1}. {step}')
             prev_steps.append(step)
+            step_prob_pair = {'step': step, 'prob': prob}
 
-            print('Ground Truth :', valid_seen_gt_steps[traj_data['task_id']])
-            print('step :', step)
+            # corresponding number compared to the ground truth
+            # If there is a duplicate, the first planned step is numbered.
+            step_idx += 1
+            if not step in ['done', 'done.', 'done.\n']:
+                if ground_truth[GT_idx] == step_prob_pair['step']:
+                    GT_arr[GT_idx] = step_idx
+                    GT_idx += 1
+                    true_options.append(step_prob_pair['prob'])
 
-            if t >= len(valid_seen_gt_steps[traj_data['task_id']]):
-                print('GT count exceeded')
-            elif step == valid_seen_gt_steps[traj_data['task_id']][t]:
-                print('match')
-            elif step != valid_seen_gt_steps[traj_data['task_id']][t]:
-                print('mismatch')
-            else:
-                print('except')
-            
             if step in ['done', 'done.', 'done.\n']:
                 done = True
                 prev_action_msg.append('')
@@ -346,8 +249,7 @@ class AlfredEvaluator(Evaluator):
                 action_ret = env.llm_skill_interact(step_to_execute)
             except Exception as e:
                 log.warning(e)
-            
-            imgs.append(env.write_step_on_img(self.cfg.planner.use_predefined_prompt, t+1, action_ret))
+            imgs.append(env.write_step_on_img(self.cfg, t+1, action_ret, GT_arr, idx))
             prev_action_msg.append(action_ret['message'])
 
             if not action_ret['success']:
@@ -356,13 +258,7 @@ class AlfredEvaluator(Evaluator):
             # next time-step
             t_reward, t_done = env.get_transition_reward()
             reward += t_reward
-            t += 1
-            img_num += 1
-        
-        idx += 1
-
-        # while 끝나면 target goal : {}... success : True or False 출력하는거 나옴
-        print('이 task의 최종 length: ', len(prev_diff_score), '  prev_diff_score : ', prev_diff_score)
+            t += 1  # step num
 
         # check if goal was satisfied
         goal_satisfied = env.get_goal_satisfied()
@@ -383,11 +279,11 @@ class AlfredEvaluator(Evaluator):
                     'success': success}
 
         # save
-        self.save_result(env, log_entry, imgs, save_path)
+        self.save_result(ground_truth, GT_arr, env, log_entry, imgs, save_path)
 
-        return log_entry, prev_diff_score
-
-    def save_result(self, env, result_dict, imgs, base_path='results'):
+        return log_entry, true_options, t
+    
+    def save_result(self, GTstep, GTarr, env, result_dict, imgs, base_path='results'):
         if result_dict:
             filename = f"{result_dict['trial']}_{result_dict['repeat_idx']}"
 
@@ -400,24 +296,23 @@ class AlfredEvaluator(Evaluator):
         # write img
         widths, heights = zip(*(i.size for i in imgs))
         total_width = widths[0] * 5
-        textbox_height = 70  # max two lines
+        textbox_height = 160  # max six lines
         total_height = math.ceil(len(imgs) / 5) * heights[0] + textbox_height
         new_im = Image.new('RGB', (total_width, total_height), color='white')
 
         # draw text
         if result_dict:
             text = 'Instruction: ' + result_dict['goal_instr']
-            text2 = 'goal: ' + json.dumps(env.task.get_targets())
+            text_gt_arr = '\nGTarr: ' + ','.join(str(s) for s in GTarr)
+            text_gt = ', '.join(GTstep)
             text_color = (0, 0, 0)  # black
-            # text_color = (100, 255, 100) if result_dict['success'] else (255, 100, 100)
-            lines = textwrap.wrap(text, width=110)
-            lines2 = textwrap.wrap(text2, width=110)
-            #lines3 = lines + lines2
             draw = ImageDraw.Draw(new_im)
-            y_start = 10 if len(lines) > 1 else 35
-            #draw.multiline_text((10, y_start), '\n'.join(lines3), font=font, fill=text_color)
-            draw.text((2, 2), text, font=font, fill=text_color)
-            draw.text((2, y_start + 5), text2, font=font, fill=text_color)
+            draw.text((2, 2), text + text_gt_arr, font=font, fill=text_color)
+            lines = textwrap.wrap(text_gt, width=120)
+            y_start = 50 if len(lines) > 1 else 70
+            for line in lines:
+                draw.text((2, y_start + 3), line, font=font, fill=text_color)
+                y_start += 25
             y_offset = textbox_height
         else:
             y_offset = 0
@@ -432,43 +327,3 @@ class AlfredEvaluator(Evaluator):
 
         success_str = 'success' if result_dict['success'] else 'fail'
         new_im.save(os.path.join(base_path, f"{filename}_{success_str}.png"))
-
-    def encode_img(self, save_path, idx, img_num):
-        with open(os.path.join(save_path + '/', f'{idx}_{img_num}.png'), 'rb') as f:
-            return base64.b64encode(f.read()).decode('utf-8')
-        
-    def get_vision_text(self, save_path, idx, img_num):
-        base64_image = self.encode_img(save_path, idx, img_num)
-
-        headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {self.cfg.planner.openai_api_key}"
-        }
-
-        payload = {
-        "model": "gpt-4-turbo",
-        "messages": [
-            {
-            "role": "user",
-            "content": [
-                {
-                "type": "text",
-                "text": "What’s in this image?"
-                },
-                {
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_image}"
-                }
-                }
-            ]
-            }
-        ],
-        "max_tokens": 300
-        }
-
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-        #print(response.json()['choices'][0]['message']['content'])
-
-        return response.json()['choices'][0]['message']['content']
-
